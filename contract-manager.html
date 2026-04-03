@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>계약 만료 관리</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Pretendard:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --surface: #171717;
+    --surface2: #1e1e1e;
+    --border: #2a2a2a;
+    --border2: #333;
+    --text: #e8e8e8;
+    --text2: #888;
+    --text3: #555;
+    --accent: #c8f060;
+    --accent-dim: rgba(200,240,96,0.12);
+    --accent-dim2: rgba(200,240,96,0.06);
+    --danger: #ff6b6b;
+    --danger-dim: rgba(255,107,107,0.12);
+    --warning: #ffb84d;
+    --warning-dim: rgba(255,184,77,0.12);
+    --safe: #5de8a8;
+    --safe-dim: rgba(93,232,168,0.10);
+    --mono: 'DM Mono', monospace;
+    --sans: 'Pretendard', sans-serif;
+    --radius: 8px;
+    --radius-lg: 14px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* Layout */
+  .app { max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* Header */
+  .header { margin-bottom: 40px; }
+  .header-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-mark {
+    width: 36px; height: 36px; background: var(--accent);
+    border-radius: 8px; display: flex; align-items: center; justify-content: center;
+  }
+  .logo-mark svg { width: 18px; height: 18px; }
+  .logo-text { font-size: 17px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
+  .logo-sub { font-size: 12px; color: var(--text3); font-family: var(--mono); margin-top: 1px; }
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 28px; }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    transition: border-color 0.2s;
+  }
+  .stat:hover { border-color: var(--border2); }
+  .stat-val { font-size: 28px; font-weight: 600; font-family: var(--mono); line-height: 1; margin-bottom: 6px; }
+  .stat-label { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; font-family: var(--mono); }
+  .stat.danger .stat-val { color: var(--danger); }
+  .stat.warning .stat-val { color: var(--warning); }
+  .stat.safe .stat-val { color: var(--safe); }
+  .stat.total .stat-val { color: var(--accent); }
+
+  /* Search / Filter bar */
+  .toolbar {
+    display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center;
+  }
+  .search-wrap { position: relative; flex: 1; min-width: 180px; }
+  .search-wrap svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; color: var(--text3); pointer-events: none; }
+  .search-input {
+    width: 100%; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text); font-family: var(--sans);
+    font-size: 13px; padding: 9px 12px 9px 34px; outline: none; transition: border-color 0.2s;
+  }
+  .search-input:focus { border-color: var(--accent); }
+  .search-input::placeholder { color: var(--text3); }
+  .filter-select {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); color: var(--text2); font-family: var(--mono);
+    font-size: 12px; padding: 9px 12px; outline: none; cursor: pointer; transition: border-color 0.2s;
+  }
+  .filter-select:focus { border-color: var(--accent); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    border-radius: var(--radius); font-family: var(--sans); font-size: 13px;
+    font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; padding: 9px 14px; white-space: nowrap;
+  }
+  .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+  .btn-primary { background: var(--accent); color: #0f0f0f; }
+  .btn-primary:hover { background: #d4f570; }
+  .btn-primary:active { transform: scale(0.98); }
+  .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+  .btn-ghost:hover { background: var(--surface2); border-color: var(--border2); color: var(--text); }
+  .btn-danger-ghost { background: transparent; color: var(--danger); border: 1px solid transparent; padding: 6px 8px; }
+  .btn-danger-ghost:hover { background: var(--danger-dim); border-color: var(--danger); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+  /* Contract list */
+  .list-header {
+    display: grid; grid-template-columns: 1fr 140px 130px 90px 80px;
+    gap: 12px; padding: 8px 16px; margin-bottom: 4px;
+    font-size: 11px; color: var(--text3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.6px;
+  }
+  .contracts { display: flex; flex-direction: column; gap: 6px; }
+  .contract-row {
+    display: grid; grid-template-columns: 1fr 140px 130px 90px 80px;
+    gap: 12px; align-items: center;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); padding: 14px 16px;
+    transition: border-color 0.2s, background 0.2s;
+    animation: rowIn 0.25s ease both;
+  }
+  @keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .contract-row:hover { border-color: var(--border2); background: var(--surface2); }
+  .contract-row.expired { border-left: 3px solid var(--danger); }
+  .contract-row.soon { border-left: 3px solid var(--warning); }
+  .contract-row.safe { border-left: 3px solid var(--safe); }
+
+  .contract-name { font-weight: 500; font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contract-manager { font-size: 12px; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contract-email { font-size: 11px; color: var(--text3); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .contract-date { font-size: 12px; font-family: var(--mono); color: var(--text2); }
+  .badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-family: var(--mono); font-weight: 500;
+    padding: 3px 8px; border-radius: 99px; white-space: nowrap;
+  }
+  .badge.expired { background: var(--danger-dim); color: var(--danger); }
+  .badge.soon { background: var(--warning-dim); color: var(--warning); }
+  .badge.safe { background: var(--safe-dim); color: var(--safe); }
+  .row-actions { display: flex; gap: 4px; justify-content: flex-end; }
+
+  /* Empty state */
+  .empty {
+    text-align: center; padding: 60px 20px;
+    background: var(--surface); border: 1px dashed var(--border2);
+    border-radius: var(--radius-lg); color: var(--text3);
+  }
+  .empty-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
+  .empty-title { font-size: 15px; color: var(--text2); font-weight: 500; margin-bottom: 6px; }
+  .empty-sub { font-size: 13px; margin-bottom: 20px; }
+
+  /* Modal */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7); z-index: 100;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border2);
+    border-radius: 16px; padding: 28px; width: 100%; max-width: 460px;
+    animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn { from { opacity: 0; transform: scale(0.96) translateY(10px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+  .modal-title { font-size: 17px; font-weight: 600; margin-bottom: 20px; color: var(--text); }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-size: 12px; color: var(--text3); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+  .field input {
+    width: 100%; background: var(--bg); border: 1px solid var(--border2);
+    border-radius: var(--radius); color: var(--text); font-family: var(--sans);
+    font-size: 14px; padding: 10px 12px; outline: none; transition: border-color 0.2s;
+  }
+  .field input:focus { border-color: var(--accent); }
+  .field input::placeholder { color: var(--text3); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 24px; }
+
+  /* GAS Panel */
+  .gas-panel {
+    margin-top: 32px; background: var(--surface);
+    border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;
+  }
+  .gas-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px; border-bottom: 1px solid var(--border); cursor: pointer;
+  }
+  .gas-header-left { display: flex; align-items: center; gap: 10px; }
+  .gas-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+  .gas-title { font-size: 14px; font-weight: 500; }
+  .gas-sub { font-size: 12px; color: var(--text3); font-family: var(--mono); }
+  .gas-chevron { color: var(--text3); transition: transform 0.2s; }
+  .gas-chevron.open { transform: rotate(180deg); }
+  .gas-body { display: none; padding: 20px; }
+  .gas-body.open { display: block; }
+  .gas-steps { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .gas-step {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text2); font-family: var(--mono);
+  }
+  .gas-step-num {
+    width: 20px; height: 20px; border-radius: 50%; background: var(--accent-dim);
+    color: var(--accent); font-size: 11px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .gas-step-arrow { color: var(--text3); font-size: 10px; }
+  .code-wrap { position: relative; }
+  .code-box {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px; font-family: var(--mono);
+    font-size: 11.5px; line-height: 1.8; color: #b0b0b0;
+    overflow-x: auto; max-height: 320px; overflow-y: auto;
+    white-space: pre;
+  }
+  .code-box .k { color: #c792ea; }
+  .code-box .s { color: #c3e88d; }
+  .code-box .c { color: #546e7a; font-style: italic; }
+  .code-box .n { color: #82aaff; }
+  .copy-btn-abs {
+    position: absolute; top: 10px; right: 10px;
+    background: var(--surface2); border: 1px solid var(--border2);
+    border-radius: 6px; padding: 5px 10px; font-size: 11px;
+    font-family: var(--mono); color: var(--text2); cursor: pointer; transition: all 0.15s;
+  }
+  .copy-btn-abs:hover { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+  .copy-btn-abs.copied { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--surface2); border: 1px solid var(--border2); border-radius: 99px;
+    padding: 10px 20px; font-size: 13px; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+    transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); z-index: 200; white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex-shrink: 0; }
+
+  @media (max-width: 640px) {
+    .list-header { display: none; }
+    .contract-row { grid-template-columns: 1fr auto; grid-template-rows: auto auto; gap: 6px; }
+    .contract-manager, .contract-email { display: none; }
+    .contract-date { font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-top">
+      <div class="logo">
+        <div class="logo-mark">
+          <svg viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="2" width="14" height="14" rx="2" stroke="#0f0f0f" stroke-width="1.5"/>
+            <path d="M5 9h8M5 6h5M5 12h6" stroke="#0f0f0f" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="logo-text">계약 만료 관리</div>
+          <div class="logo-sub">contract renewal tracker</div>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-ghost" onclick="importCSV()">
+          <svg viewBox="0 0 14 14" fill="none"><path d="M7 1v8M4 6l3 3 3-3M2 10v2a1 1 0 001 1h8a1 1 0 001-1v-2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+          CSV 가져오기
+        </button>
+        <button class="btn btn-primary" onclick="openAddModal()">
+          <svg viewBox="0 0 14 14" fill="none"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          계약 추가
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats" id="stats"></div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="search-wrap">
+      <svg viewBox="0 0 14 14" fill="none"><circle cx="6" cy="6" r="4" stroke="currentColor" stroke-width="1.4"/><path d="M9 9l3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <input class="search-input" type="text" placeholder="계약명, 담당자 검색..." id="searchInput" oninput="renderList()">
+    </div>
+    <select class="filter-select" id="filterSelect" onchange="renderList()">
+      <option value="all">전체</option>
+      <option value="expired">만료됨</option>
+      <option value="soon">30일 이내</option>
+      <option value="safe">정상</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="sortToggle()">
+      <svg viewBox="0 0 14 14" fill="none"><path d="M2 4h10M4 7h6M6 10h2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+      <span id="sortLabel">만료일순</span>
+    </button>
+  </div>
+
+  <!-- List header -->
+  <div class="list-header">
+    <span>계약명</span>
+    <span>담당자</span>
+    <span>이메일</span>
+    <span>만료일</span>
+    <span></span>
+  </div>
+
+  <!-- Contract list -->
+  <div class="contracts" id="contractList"></div>
+
+  <!-- GAS Panel -->
+  <div class="gas-panel">
+    <div class="gas-header" onclick="toggleGas()">
+      <div class="gas-header-left">
+        <div class="gas-dot"></div>
+        <div>
+          <div class="gas-title">Gmail 자동 알림 설정</div>
+          <div class="gas-sub">Google Apps Script 연동 — 만료 30일 전 자동 발송</div>
+        </div>
+      </div>
+      <svg class="gas-chevron" id="gasChevron" viewBox="0 0 14 14" fill="none" width="16" height="16">
+        <path d="M3 5l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="gas-body" id="gasBody">
+      <div class="gas-steps">
+        <div class="gas-step"><div class="gas-step-num">1</div><span>아래 코드 복사</span></div>
+        <div class="gas-step-arrow">›</div>
+        <div class="gas-step"><div class="gas-step-num">2</div><span>script.google.com 열기</span></div>
+        <div class="gas-step-arrow">›</div>
+        <div class="gas-step"><div class="gas-step-num">3</div><span>붙여넣기 후 저장</span></div>
+        <div class="gas-step-arrow">›</div>
+        <div class="gas-step"><div class="gas-step-num">4</div><span>setupTrigger 실행</span></div>
+      </div>
+      <div class="code-wrap">
+        <div class="code-box" id="gasCode"></div>
+        <button class="copy-btn-abs" id="copyGasBtn" onclick="copyGasCode()">복사</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-overlay" id="modal" onclick="closeModalOutside(event)">
+  <div class="modal">
+    <div class="modal-title" id="modalTitle">계약 추가</div>
+    <div class="field">
+      <label>계약명</label>
+      <input type="text" id="f-name" placeholder="예: 네이버 광고 계약">
+    </div>
+    <div class="field">
+      <label>담당자명</label>
+      <input type="text" id="f-manager" placeholder="예: 김민준">
+    </div>
+    <div class="field">
+      <label>담당자 이메일</label>
+      <input type="email" id="f-email" placeholder="예: minjun@company.com">
+    </div>
+    <div class="field">
+      <label>만료일</label>
+      <input type="date" id="f-date">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" onclick="saveContract()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden CSV input -->
+<input type="file" id="csvFileInput" accept=".csv" style="display:none" onchange="handleCSV(event)">
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-dot"></div>
+  <span id="toastMsg"></span>
+</div>
+
+<script>
+const STORAGE_KEY = 'contracts_v1';
+let contracts = [];
+let editingId = null;
+let sortAsc = true;
+
+function load() {
+  try { contracts = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); } catch { contracts = []; }
+}
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(contracts));
+}
+
+function daysLeft(dateStr) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  return Math.round((d - today) / 86400000);
+}
+function getStatus(dl) {
+  if (dl < 0) return 'expired';
+  if (dl <= 30) return 'soon';
+  return 'safe';
+}
+
+function renderStats() {
+  const total = contracts.length;
+  const expired = contracts.filter(c => daysLeft(c.expiry) < 0).length;
+  const soon = contracts.filter(c => { const d = daysLeft(c.expiry); return d >= 0 && d <= 30; }).length;
+  const safe = contracts.filter(c => daysLeft(c.expiry) > 30).length;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat total"><div class="stat-val">${total}</div><div class="stat-label">전체 계약</div></div>
+    <div class="stat danger"><div class="stat-val">${expired}</div><div class="stat-label">만료됨</div></div>
+    <div class="stat warning"><div class="stat-val">${soon}</div><div class="stat-label">30일 이내</div></div>
+    <div class="stat safe"><div class="stat-val">${safe}</div><div class="stat-label">정상</div></div>
+  `;
+}
+
+function renderList() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const filter = document.getElementById('filterSelect').value;
+  let list = contracts.filter(c => {
+    const status = getStatus(daysLeft(c.expiry));
+    const matchFilter = filter === 'all' || status === filter;
+    const matchQ = !q || c.name.toLowerCase().includes(q) || (c.manager||'').toLowerCase().includes(q);
+    return matchFilter && matchQ;
+  });
+  list = list.sort((a, b) => {
+    const diff = new Date(a.expiry) - new Date(b.expiry);
+    return sortAsc ? diff : -diff;
+  });
+
+  const el = document.getElementById('contractList');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty">
+      <div class="empty-icon">📋</div>
+      <div class="empty-title">${contracts.length === 0 ? '계약이 없습니다' : '검색 결과가 없습니다'}</div>
+      <div class="empty-sub">${contracts.length === 0 ? '계약 추가 버튼을 눌러 시작하세요' : '다른 검색어나 필터를 사용해보세요'}</div>
+      ${contracts.length === 0 ? '<button class="btn btn-primary" onclick="loadSample()">샘플 데이터 불러오기</button>' : ''}
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(c => {
+    const dl = daysLeft(c.expiry);
+    const status = getStatus(dl);
+    const badgeText = dl < 0 ? `만료 ${Math.abs(dl)}일 경과` : dl === 0 ? '오늘 만료' : `${dl}일 남음`;
+    return `<div class="contract-row ${status}">
+      <div>
+        <div class="contract-name">${esc(c.name)}</div>
+      </div>
+      <div class="contract-manager">${esc(c.manager||'')}</div>
+      <div class="contract-email">${esc(c.email||'')}</div>
+      <div class="contract-date">${c.expiry}</div>
+      <div style="display:flex;align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap;">
+        <span class="badge ${status}">${badgeText}</span>
+        <div class="row-actions">
+          <button class="btn btn-danger-ghost btn-sm" onclick="deleteContract('${c.id}')" title="삭제">
+            <svg viewBox="0 0 14 14" fill="none" width="13" height="13"><path d="M2 3.5h10M5.5 3.5V2.5a.5.5 0 01.5-.5h2a.5.5 0 01.5.5v1M6 6v4M8 6v4M3 3.5l.7 7.5a.5.5 0 00.5.5h5.6a.5.5 0 00.5-.5L11 3.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+          </button>
+          <button class="btn btn-ghost btn-sm" onclick="openEditModal('${c.id}')" title="수정">
+            <svg viewBox="0 0 14 14" fill="none" width="13" height="13"><path d="M9.5 2.5l2 2-7 7H2.5v-2l7-7z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function sortToggle() {
+  sortAsc = !sortAsc;
+  document.getElementById('sortLabel').textContent = sortAsc ? '만료일순' : '최신순';
+  renderList();
+}
+
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '계약 추가';
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-manager').value = '';
+  document.getElementById('f-email').value = '';
+  document.getElementById('f-date').value = '';
+  document.getElementById('modal').classList.add('open');
+  setTimeout(() => document.getElementById('f-name').focus(), 100);
+}
+
+function openEditModal(id) {
+  const c = contracts.find(x => x.id === id);
+  if (!c) return;
+  editingId = id;
+  document.getElementById('modalTitle').textContent = '계약 수정';
+  document.getElementById('f-name').value = c.name;
+  document.getElementById('f-manager').value = c.manager || '';
+  document.getElementById('f-email').value = c.email || '';
+  document.getElementById('f-date').value = c.expiry;
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function closeModalOutside(e) { if (e.target.id === 'modal') closeModal(); }
+
+function saveContract() {
+  const name = document.getElementById('f-name').value.trim();
+  const manager = document.getElementById('f-manager').value.trim();
+  const email = document.getElementById('f-email').value.trim();
+  const expiry = document.getElementById('f-date').value;
+  if (!name || !expiry) { showToast('계약명과 만료일은 필수입니다'); return; }
+  if (editingId) {
+    const idx = contracts.findIndex(c => c.id === editingId);
+    if (idx !== -1) contracts[idx] = { ...contracts[idx], name, manager, email, expiry };
+    showToast('계약이 수정되었습니다');
+  } else {
+    contracts.push({ id: Date.now().toString(), name, manager, email, expiry });
+    showToast('계약이 추가되었습니다');
+  }
+  save(); renderStats(); renderList(); generateGasCode(); closeModal();
+}
+
+function deleteContract(id) {
+  if (!confirm('이 계약을 삭제할까요?')) return;
+  contracts = contracts.filter(c => c.id !== id);
+  save(); renderStats(); renderList(); generateGasCode();
+  showToast('삭제되었습니다');
+}
+
+function importCSV() { document.getElementById('csvFileInput').click(); }
+
+function handleCSV(e) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const lines = ev.target.result.split('\n').filter(l => l.trim());
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,'').toLowerCase().replace(/\s/g,''));
+    const idx = {
+      name: headers.findIndex(h => ['계약명','name','contract'].includes(h)),
+      manager: headers.findIndex(h => ['담당자명','담당자','manager'].includes(h)),
+      email: headers.findIndex(h => ['담당자이메일','이메일','email'].includes(h)),
+      expiry: headers.findIndex(h => ['만료일','expiry','expiration','due'].includes(h))
+    };
+    let added = 0;
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.trim().replace(/"/g,''));
+      const name = idx.name >= 0 ? cols[idx.name] : '';
+      const expiry = idx.expiry >= 0 ? cols[idx.expiry] : '';
+      if (!name || !expiry) continue;
+      contracts.push({
+        id: Date.now().toString() + i,
+        name, manager: idx.manager >= 0 ? cols[idx.manager] : '',
+        email: idx.email >= 0 ? cols[idx.email] : '', expiry
+      });
+      added++;
+    }
+    save(); renderStats(); renderList(); generateGasCode();
+    showToast(`${added}개 계약을 가져왔습니다`);
+    e.target.value = '';
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
+function loadSample() {
+  contracts = [
+    { id: '1', name: '네이버 광고 계약', manager: '김민준', email: 'minjun@company.com', expiry: '2026-04-20' },
+    { id: '2', name: 'AWS 서버 계약', manager: '이서연', email: 'seoyeon@company.com', expiry: '2026-05-02' },
+    { id: '3', name: '카카오 API 라이선스', manager: '박지호', email: 'jiho@company.com', expiry: '2026-06-15' },
+    { id: '4', name: '슬랙 Enterprise', manager: '김민준', email: 'minjun@company.com', expiry: '2026-07-10' },
+    { id: '5', name: 'Adobe Creative Cloud', manager: '최수아', email: 'sua@company.com', expiry: '2025-12-01' },
+  ];
+  save(); renderStats(); renderList(); generateGasCode();
+  showToast('샘플 데이터를 불러왔습니다');
+}
+
+function toggleGas() {
+  const body = document.getElementById('gasBody');
+  const chevron = document.getElementById('gasChevron');
+  body.classList.toggle('open');
+  chevron.classList.toggle('open');
+}
+
+function generateGasCode() {
+  const rows = contracts.map(c =>
+    `  { name: "${(c.name||'').replace(/"/g,'\\"')}",  manager: "${(c.manager||'').replace(/"/g,'\\"')}",  email: "${(c.email||'').replace(/"/g,'\\"')}",  expiry: "${c.expiry||''}" }`
+  ).join(',\n');
+
+  const code = `// 계약 만료 30일 전 Gmail 자동 알림
+// 마지막 업데이트: ${new Date().toLocaleDateString('ko-KR')}
+
+var CONTRACTS = [
+${rows || '  // 계약을 추가하면 여기에 자동으로 채워집니다'}
+];
+
+function setupTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'checkExpiry') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger('checkExpiry')
+    .timeBased().everyDays(1).atHour(9).create();
+  Logger.log('트리거 등록 완료 (매일 오전 9시)');
+}
+
+function checkExpiry() {
+  var today = new Date(); today.setHours(0,0,0,0);
+  CONTRACTS.forEach(function(c) {
+    var expiry = new Date(c.expiry); expiry.setHours(0,0,0,0);
+    var days = Math.round((expiry - today) / 86400000);
+    if (days === 30) sendAlert(c, days);
+  });
+}
+
+function sendAlert(c, days) {
+  var subject = '[계약 갱신 알림] ' + c.name + ' (' + days + '일 후 만료)';
+  var html = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
+    + '<div style="background:#0f0f0f;padding:24px 28px;border-radius:12px 12px 0 0;">'
+    + '<span style="color:#c8f060;font-size:13px;font-weight:600;letter-spacing:1px;">CONTRACT RENEWAL NOTICE</span>'
+    + '</div>'
+    + '<div style="background:#ffffff;border:1px solid #e8e8e8;border-top:none;padding:28px;border-radius:0 0 12px 12px;">'
+    + '<p style="color:#333;font-size:16px;margin:0 0 20px;"><strong>' + c.manager + '</strong> 담당자님, 아래 계약이 곧 만료됩니다.</p>'
+    + '<table style="width:100%;border-collapse:collapse;font-size:14px;">'
+    + '<tr style="background:#f8f8f8;"><td style="padding:10px 14px;color:#888;width:100px;">계약명</td>'
+    + '<td style="padding:10px 14px;font-weight:600;color:#111;">' + c.name + '</td></tr>'
+    + '<tr><td style="padding:10px 14px;color:#888;">만료일</td>'
+    + '<td style="padding:10px 14px;font-weight:600;color:#e55;">' + c.expiry + '</td></tr>'
+    + '<tr style="background:#f8f8f8;"><td style="padding:10px 14px;color:#888;">남은 기간</td>'
+    + '<td style="padding:10px 14px;font-weight:600;color:#111;">' + days + '일</td></tr>'
+    + '</table>'
+    + '<p style="color:#aaa;font-size:12px;margin:20px 0 0;">본 메일은 자동 발송됩니다.</p>'
+    + '</div></div>';
+  GmailApp.sendEmail(c.email, subject, '', { htmlBody: html });
+  Logger.log('발송: ' + c.email + ' / ' + c.name);
+}`;
+
+  document.getElementById('gasCode').textContent = code;
+}
+
+function copyGasCode() {
+  const code = document.getElementById('gasCode').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    const btn = document.getElementById('copyGasBtn');
+    btn.textContent = '복사됨!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '복사'; btn.classList.remove('copied'); }, 2000);
+    showToast('코드가 복사되었습니다');
+  });
+}
+
+let toastTimer;
+function showToast(msg) {
+  clearTimeout(toastTimer);
+  document.getElementById('toastMsg').textContent = msg;
+  const t = document.getElementById('toast');
+  t.classList.add('show');
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Init
+load(); renderStats(); renderList(); generateGasCode();
+
+// keyboard shortcut
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('searchInput').focus(); }
+});
+</script>
+</body>
+</html>
